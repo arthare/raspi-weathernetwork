@@ -1,0 +1,11 @@
+{
+    "uploadpath": "/the/path/you/want/to/scp/image/to/on/your/server/image.jpg",
+    "uploaduser": "theUserOnYourServerToUploadAs",
+    "uploadserver": "yourserver.com",
+    "uploadprivatekey": "/path/to/your/users/private/key/to/scp/with",
+    "visiblepath": "/the/world-visible/path/after/yourserver.com/image.jpg",
+    "slackchannel": "#weather",
+    "slackwebhook": "https://hooks.slack.com/services/webhook1/webhook2/webhook3",
+    "slackusername": "weatherbot",
+    "sbetweenposts": 1800
+}
