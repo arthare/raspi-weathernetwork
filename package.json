@@ -1,0 +1,15 @@
+{
+  "name": "raspi-weathernetwork",
+  "version": "0.0.0",
+  "description": "a quick raspi app that posts webcam images to slack",
+  "main": "weathernetwork.js",
+  "dependencies": {
+    "slack-node": "^0.1.8"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "art hare",
+  "license": "ISC"
+}
