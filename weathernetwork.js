@@ -6,6 +6,21 @@ var request = require('request');
 var config = fs.readFileSync("./your-weathernetwork-config.json", 'utf8');
 config = JSON.parse(config);
 
+if(!config.slacktoken) {
+	console.error("You need to include a 'slacktoken' field in your-weathernetwork-config.json!  You can get it from your slack app's config scopes");
+	process.exit(1);
+}
+if(!config.slackchannel) {
+	console.error("You need to include a 'slackchannel' field in your-weathernetwork-config.json!  It'll need to match the channel you config'd the weathernetwork app to use");
+	process.exit(1);
+}
+if(!config.sbetweenposts) {
+	console.warn("You didn't include a seconds between posts.  We're going to set this to half an hour");
+}
+
+config.sbetweenposts = config.sbetweeposts || 1800;
+
+
 function promiseExec(strCommand) {
   return new Promise((resolve, reject) => {
     exec(strCommand, function(err, stdout, stderr) {
@@ -22,7 +37,9 @@ function promiseExec(strCommand) {
   })
 }
 function postToSlack(imagePath) {
+  console.log("going to try to post to slack");
   return new Promise((resolve) => {
+    console.log("about to do request.post");
     request.post({
       url: 'https://slack.com/api/files.upload',
       formData: {
@@ -34,6 +51,8 @@ function postToSlack(imagePath) {
         file: fs.createReadStream(imagePath),
       },
     }, function (err, response) {
+      console.log("err = ", err);
+      console.log("response = ",response);
       resolve();
     });
   })
