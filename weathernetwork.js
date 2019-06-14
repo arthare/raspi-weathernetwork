@@ -40,10 +40,37 @@ function postToSlack(imagePath) {
   console.log("going to try to post to slack");
   return new Promise((resolve) => {
     console.log("about to do request.post");
-    request.post({
+    
+    const options = {
+      method: "POST",
+      url: "https://slack.com/api/files.upload",
+      port: 443,
+      headers: {
+          "Authorization": `Bearer ` + config.slacktoken,
+          "Content-Type": "multipart/form-data"
+      },
+      formData : {
+        //token: config.slacktoken,
+        title: "Image",
+        filename: "Raspi-Weathernetwork.jpg",
+        filetype: "auto",
+        channels: config.slackchannel,
+        file: fs.createReadStream(imagePath),
+      },
+    };
+  
+    request(options, function (err, res, body) {
+        if(err) console.log(err);
+        console.log(body);
+
+        resolve();
+    });
+    
+    /*request.post({
       url: 'https://slack.com/api/files.upload',
       headers: {
-	      "Authorization": `Bearer ${config.slacktoken}`,
+        "Authorization": `Bearer ${config.slacktoken}`,
+        "Content-Type": "multipart/form-datazz",
       },
       formData: {
         token: config.slacktoken,
@@ -55,7 +82,7 @@ function postToSlack(imagePath) {
       },
     }, function (err, response) {
       resolve();
-    });
+    });*/
   })
 }
 
