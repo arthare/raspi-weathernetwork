@@ -42,6 +42,9 @@ function postToSlack(imagePath) {
     console.log("about to do request.post");
     request.post({
       url: 'https://slack.com/api/files.upload',
+      headers: {
+	      "Authorization": `Bearer ${config.slacktoken}`,
+      },
       formData: {
         token: config.slacktoken,
         title: "Image",
@@ -51,8 +54,6 @@ function postToSlack(imagePath) {
         file: fs.createReadStream(imagePath),
       },
     }, function (err, response) {
-      console.log("err = ", err);
-      console.log("response = ",response);
       resolve();
     });
   })
