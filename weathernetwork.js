@@ -1,11 +1,10 @@
-var sys = require('util')
+
 var exec = require('child_process').exec;
-var Slack = require('slack-node');
 var fs = require('fs');
+var request = require('request');
 
 var config = fs.readFileSync("./your-weathernetwork-config.json", 'utf8');
 config = JSON.parse(config);
-
 
 function promiseExec(strCommand) {
   return new Promise((resolve, reject) => {
@@ -22,45 +21,36 @@ function promiseExec(strCommand) {
     });
   })
 }
-function postToSlack(channel, content) {
+function postToSlack(imagePath) {
   return new Promise((resolve) => {
-    slack = new Slack();
-    slack.setWebhook(config.slackwebhook);
-    
-    slack.webhook({
-      channel: config.slackchannel,
-      username: config.slackusername,
-      text: content,
-      icon_emoji: ":sunny:",
-      attachments: [{
-        image_url: `http://${config.uploadserver}${config.visiblepath}`,
-      }
-      ]
-    }, function(err, response) {
-      console.log(response);
+    request.post({
+      url: 'https://slack.com/api/files.upload',
+      formData: {
+        token: config.slacktoken,
+        title: "Image",
+        filename: "Raspi-Weathernetwork.jpg",
+        filetype: "auto",
+        channels: config.slackchannel,
+        file: fs.createReadStream(imagePath),
+      },
+    }, function (err, response) {
       resolve();
     });
   })
 }
 
 function doOnePicture() {
-  console.log("picture");
   return promiseExec("fswebcam -r 1280x720 ./temp/output.jpg").then((pictureComplete) => {
-    console.log(pictureComplete);
-
-    var scpCommand = `scp -i ${config.uploadprivatekey} ./temp/output.jpg ${config.uploaduser}@${config.uploadserver}:${config.uploadpath}`;
-    console.log("executing ", scpCommand);
-    return promiseExec(scpCommand).then(() => {
-      return postToSlack("", "test");
-    });
+    console.log("took picture, posting image");
+    return postToSlack("./temp/output.jpg");
   }).catch((failed) => {
-    console.log("failed to take picture");
+    console.log("failed to take picture, posting sad sun");
+    return postToSlack("./sun_sad.png");
   });
 }
 
 var lastPictureTime = -1;
 function mainLogic() {
-  console.log("logic");
   var tmNow = new Date().getTime();
   var timeSince = tmNow - lastPictureTime;
 
@@ -73,6 +63,8 @@ function mainLogic() {
 
   prom.then(() => {
     setTimeout(mainLogic, 5000);
+  }, (failure) => {
+    console.log(failure);
   });
 }
 
