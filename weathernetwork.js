@@ -2,6 +2,7 @@
 var exec = require('child_process').exec;
 var fs = require('fs');
 var request = require('request');
+const createGifFromFiles = require('./gifbuilder');
 
 var config = fs.readFileSync("./your-weathernetwork-config.json", 'utf8');
 config = JSON.parse(config);
@@ -17,7 +18,15 @@ if(!config.slackchannel) {
 if(!config.sbetweenposts) {
 	console.warn("You didn't include a seconds between posts.  We're going to set this to half an hour");
 }
+if(!config.giflength) {
+  console.warn("You didn't include a length for your posted GIFs in config.giflength.  Defaulting to 10")
+}
+if(!config.sbetweengifframes) {
+  console.warn("You didn't include a time between your GIF frames, so we'll use approximately 60s");
+}
 
+config.giflength = config.giflength || 10;
+config.sbetweengifframes = config.sbetweengifframes || 60;
 config.sbetweenposts = config.sbetweenposts || 1800;
 
 
@@ -52,7 +61,7 @@ function postToSlack(imagePath) {
       formData : {
         //token: config.slacktoken,
         title: "Image",
-        filename: "Raspi-Weathernetwork.jpg",
+        filename: "Raspi-Weathernetwork.gif",
         filetype: "auto",
         channels: config.slackchannel,
         file: fs.createReadStream(imagePath),
@@ -65,49 +74,94 @@ function postToSlack(imagePath) {
 
         resolve();
     });
-    
-    /*request.post({
-      url: 'https://slack.com/api/files.upload',
-      headers: {
-        "Authorization": `Bearer ${config.slacktoken}`,
-        "Content-Type": "multipart/form-datazz",
-      },
-      formData: {
-        token: config.slacktoken,
-        title: "Image",
-        filename: "Raspi-Weathernetwork.jpg",
-        filetype: "auto",
-        channels: config.slackchannel,
-        file: fs.createReadStream(imagePath),
-      },
-    }, function (err, response) {
-      resolve();
-    });*/
   })
 }
 
 const args = process.argv[2] || "";
 
+function PictureQueue() {
+  // this will keep a bunch of pictures in ./picture-queue
+  var ix = 0;
+  var pictures = [];
+
+  try {
+    fs.rmdirSync('./picture-queue');
+  } catch(e) {
+    // this is totally fine
+  }
+
+  try {
+    fs.mkdirSync('./picture-queue');
+    
+  } catch(e) {
+    console.error("Could not create ./picture-queue to store the GIF source files");
+  }
+
+  function cleanPictures() {
+    // if the pictures array is too long, we'll clean it up
+    if(pictures.length > config.giflength) {
+      const newPictures = pictures.slice(-config.giflength);
+      const delPictures = pictures.slice(0, pictures.length - config.giflength);
+
+      delPictures.forEach((filename) => {
+        console.log("deleting ", filename);
+        fs.unlinkSync(filename);
+      });
+
+      pictures = newPictures;
+    }
+  }
+
+  this.add = function(picFilename) {
+    ix++;
+
+    const dstFile = `picture-queue/pic${ix}.png`;
+    fs.copyFileSync(picFilename, dstFile);
+    pictures.push(dstFile);
+
+    cleanPictures();
+  }
+
+  this.getFilenames = function() {
+    return pictures.slice();
+  }
+}
+
+var queue = new PictureQueue();
+
+var lastPostToSlackTime = new Date().getTime();
+var cPictures = 0;
 function doOnePicture() {
+  cPictures++;
+
   return promiseExec(`fswebcam -F 100 ${args} ./temp/output.jpg`).then(() => {
-  	return postToSlack("./temp/output.jpg");
+    return './temp/output.jpg';
+  }, (failure) => {
+    return (cPictures % 2) ? './sun_sad.png' : './sun_sad2.png';
+  }).then((fileToPost) => {
+    console.log("adding ", fileToPost, "to the queue");
+    queue.add(fileToPost);
+
+    const tmNow = new Date().getTime();
+    const msSince = tmNow - lastPostToSlackTime;
+    if(msSince > config.sbetweenposts*1000) {
+
+      // time to make a GIF!
+      return createGifFromFiles(queue.getFilenames()).then((createdGif) => {
+        return postToSlack(createdGif).then(() => {
+          lastPostToSlackTime = tmNow;
+        })
+      });
+    }
   });
 }
 
-var lastPictureTime = -1;
 function mainLogic() {
-  var tmNow = new Date().getTime();
-  var timeSince = tmNow - lastPictureTime;
 
-  var prom = Promise.resolve();
-  if(timeSince > config.sbetweenposts*1000) {
-    prom = doOnePicture().then(() => {
-      lastPictureTime = tmNow;
-    });
-  }
+  prom = doOnePicture();
 
   prom.then(() => {
-    setTimeout(mainLogic, 5000);
+    setTimeout(mainLogic, config.sbetweengifframes*1000);
   }, (failure) => {
     console.log(failure);
   });
