@@ -1,8 +1,8 @@
 
-var exec = require('child_process').exec;
 var fs = require('fs');
 var request = require('request');
-const createGifFromFiles = require('./gifbuilder');
+const createGifFromFiles = require('./gifbuilder-imagemagick');
+var promiseExec = require('./utils').promiseExec;
 
 var config = fs.readFileSync("./your-weathernetwork-config.json", 'utf8');
 config = JSON.parse(config);
@@ -24,27 +24,15 @@ if(!config.giflength) {
 if(!config.sbetweengifframes) {
   console.warn("You didn't include a time between your GIF frames, so we'll use approximately 60s");
 }
+if(!config.imagemagickpath) {
+  console.warn("You didn't include a path to imagemagick's convert binary.  Assuming 'convert'.  On windows this will not be correct");
+}
 
 config.giflength = config.giflength || 10;
 config.sbetweengifframes = config.sbetweengifframes || 60;
 config.sbetweenposts = config.sbetweenposts || 1800;
+config.imagemagickpath = config.imagemagickpath || 'convert';
 
-
-function promiseExec(strCommand) {
-  return new Promise((resolve, reject) => {
-    exec(strCommand, function(err, stdout, stderr) {
-      console.log(stdout);
-      if(err) {
-        reject(err);
-      } else {
-        resolve({
-          stdout,
-          stderr
-        });
-      }
-    });
-  })
-}
 function postToSlack(imagePath) {
   console.log("going to try to post to slack");
   return new Promise((resolve) => {
@@ -147,11 +135,16 @@ function doOnePicture() {
     if(msSince > config.sbetweenposts*1000) {
 
       // time to make a GIF!
-      return createGifFromFiles(queue.getFilenames()).then((createdGif) => {
+      return createGifFromFiles(queue.getFilenames(), config).then((createdGif) => {
+        console.log("we created a gif!", createdGif);
         return postToSlack(createdGif).then(() => {
           lastPostToSlackTime = tmNow;
         })
+      }, (failure) => {
+        console.log("we failed ", failure);
       });
+    } else {
+
     }
   });
 }

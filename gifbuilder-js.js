@@ -2,7 +2,8 @@ const GIFEncoder = require('gifencoder');
 const pngFileStream = require('png-file-stream');
 const fs = require('fs');
  
-function buildGifFromInputs(filenames) {
+
+function buildGifFromInputs(filenames, config) {
   console.log("trying to build GIF.  Filenames: ", filenames);
   return new Promise((resolve) => {
     // we want to haul "filenames" into a directory, then turn them into a gif.  We'll resolve with the file address of the GIF
@@ -14,7 +15,7 @@ function buildGifFromInputs(filenames) {
     });
   
     const encoder = new GIFEncoder(1280, 720);
-    const stream = pngFileStream('gif-build-images/**/input?.png')
+    const stream = pngFileStream(`gif-build-images/**/input?.png`)
       .pipe(encoder.createWriteStream({ repeat: 0, delay: 333, quality: 10 }))
       .pipe(fs.createWriteStream('gif-built-images/animated.gif'));
      
