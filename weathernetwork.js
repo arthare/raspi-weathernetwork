@@ -18,7 +18,7 @@ if(!config.sbetweenposts) {
 	console.warn("You didn't include a seconds between posts.  We're going to set this to half an hour");
 }
 
-config.sbetweenposts = config.sbetweeposts || 1800;
+config.sbetweenposts = config.sbetweenposts || 1800;
 
 
 function promiseExec(strCommand) {
@@ -86,14 +86,12 @@ function postToSlack(imagePath) {
   })
 }
 
+const args = process.argv[2] || "";
+
 function doOnePicture() {
-  return promiseExec("fswebcam -r 1280x720 ./temp/output.jpg").then((pictureComplete) => {
-    console.log("took picture, posting image");
-    return postToSlack("./temp/output.jpg");
-  }).catch((failed) => {
-    console.log("failed to take picture, posting sad sun");
-    return postToSlack("./sun_sad.png");
-  });
+  return promiseExec(`fswebcam -F 100 ${args} ./temp/output.jpg`).then(() => {
+  	return postToSlack("./temp/output.jpg");
+  }
 }
 
 var lastPictureTime = -1;
