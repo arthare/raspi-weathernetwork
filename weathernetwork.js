@@ -27,11 +27,16 @@ if(!config.sbetweengifframes) {
 if(!config.imagemagickpath) {
   console.warn("You didn't include a path to imagemagick's convert binary.  Assuming 'convert'.  On windows this will not be correct");
 }
+if(!config.gifwidth) {
+  console.warn("You didn't include a gifwidth in your config.  Assuming 640");
+}
 
 config.giflength = config.giflength || 10;
 config.sbetweengifframes = config.sbetweengifframes || 60;
 config.sbetweenposts = config.sbetweenposts || 1800;
 config.imagemagickpath = config.imagemagickpath || 'convert';
+config.gifwidth = config.gifwidth || 640;
+
 
 function postToSlack(imagePath) {
   console.log("going to try to post to slack");
@@ -49,7 +54,7 @@ function postToSlack(imagePath) {
       formData : {
         //token: config.slacktoken,
         title: "Image",
-        filename: "Raspi-Weathernetwork.gif",
+        filename: imagePath,
         filetype: "auto",
         channels: config.slackchannel,
         file: fs.createReadStream(imagePath),
@@ -80,9 +85,7 @@ function PictureQueue() {
 
   try {
     fs.mkdirSync('./picture-queue');
-    
   } catch(e) {
-    console.error("Could not create ./picture-queue to store the GIF source files");
   }
 
   function cleanPictures() {
@@ -100,10 +103,10 @@ function PictureQueue() {
     }
   }
 
-  this.add = function(picFilename) {
+  this.add = function(picFilename, picExtension) {
     ix++;
 
-    const dstFile = `picture-queue/pic${ix}.png`;
+    const dstFile = `picture-queue/pic${ix}.${picExtension}`;
     fs.copyFileSync(picFilename, dstFile);
     pictures.push(dstFile);
 
@@ -122,13 +125,15 @@ var cPictures = 0;
 function doOnePicture() {
   cPictures++;
 
-  return promiseExec(`fswebcam -F 100 ${args} ./temp/output.jpg`).then(() => {
+  return promiseExec(`fswebcam -r 1280x720 -F 100 ${args} ./temp/output.jpg`).then(() => {
+    console.log("took picture, added it to the queue");
+    queue.add('./temp/output.jpg', 'jpg');
     return './temp/output.jpg';
   }, (failure) => {
-    return (cPictures % 2) ? './sun_sad.png' : './sun_sad2.png';
+    var pic = (cPictures % 2) ? './sun_sad.png' : './sun_sad2.png';
+    queue.add(pic, 'png');
+    return pic;
   }).then((fileToPost) => {
-    console.log("adding ", fileToPost, "to the queue");
-    queue.add(fileToPost);
 
     const tmNow = new Date().getTime();
     const msSince = tmNow - lastPostToSlackTime;
@@ -138,7 +143,7 @@ function doOnePicture() {
       return createGifFromFiles(queue.getFilenames(), config).then((createdGif) => {
         console.log("we created a gif!", createdGif);
         return postToSlack(createdGif).then(() => {
-          lastPostToSlackTime = tmNow;
+          lastPostToSlackTime = new Date().getTime(); // don't reuse tmNow, because on the raspi, tmNow might be like 30 seconds behind by now anyway!
         })
       }, (failure) => {
         console.log("we failed ", failure);
@@ -156,8 +161,10 @@ function mainLogic() {
   prom.then(() => {
     setTimeout(mainLogic, config.sbetweengifframes*1000);
   }, (failure) => {
-    console.log(failure);
+    console.log("failed main picture-take: ", failure);
   });
 }
 
-mainLogic();
+promiseExec('./clean').then(() => {
+  mainLogic();
+});

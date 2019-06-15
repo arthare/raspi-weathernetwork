@@ -1,0 +1,9 @@
+rm -rf gif-build-images
+rm -rf gif-built-images
+rm -rf temp
+rm -rf picture-queue
+
+mkdir gif-build-images
+mkdir gif-built-images
+mkdir temp
+mkdir picture-queue
