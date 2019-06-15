@@ -91,7 +91,7 @@ const args = process.argv[2] || "";
 function doOnePicture() {
   return promiseExec(`fswebcam -F 100 ${args} ./temp/output.jpg`).then(() => {
   	return postToSlack("./temp/output.jpg");
-  }
+  });
 }
 
 var lastPictureTime = -1;

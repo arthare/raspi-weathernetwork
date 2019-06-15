@@ -4,6 +4,7 @@
   "description": "a quick raspi app that posts webcam images to slack",
   "main": "weathernetwork.js",
   "dependencies": {
+    "request": "^2.88.0",
     "slack-node": "^0.1.8"
   },
   "devDependencies": {},
