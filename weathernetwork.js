@@ -115,9 +115,54 @@ function PictureQueue() {
   }
 }
 
+var lastPostTime = new Date().getTime();
+var lastMinute = 1440;
+var schedulesHitToday = [];
+function shouldPost(date, sbetweenposts, schedule) {
+  console.log("checking if we should post ----------------");
+  const currentMinute = date.getHours()*60 + date.getMinutes();
+  if(currentMinute < lastMinute) {
+    // it's a new day!
+    console.log("resetting the day");
+    schedulesHitToday = [];
+  } else {
+    console.log("day ongoing, we've posted ", schedulesHitToday);
+  }
+  lastMinute = currentMinute;
+
+  var fFound = false;
+  if(schedule) {
+    // we should loop through the schedule, and post everything that is in the past
+    schedule.forEach((scheduledMinute) => {
+      if(scheduledMinute < currentMinute) {
+        // this scheduled minute is in the past, so we should post it, if we haven't already posted this minute
+        const found = schedulesHitToday.find(postedMinute => postedMinute === scheduledMinute);
+        console.log("we found ", found, " when searching for ", scheduledMinute);
+        if(found) {
+          // we already posted this one
+          console.log("skipping posting because we have posted for scheduled minute ", scheduledMinute);
+        } else {
+          // we haven't posted this one
+          schedulesHitToday.push(scheduledMinute);
+          console.log("posting because we haven't posted for scheduled minute ", scheduledMinute, "yet");
+          fFound = true;
+        }
+      }
+    })
+  } else {
+    // they didn't include a schedule, so we just need to see if it has been long enough since last post
+    const msNow = date.getTime();
+    const msSince = msNow - lastPostTime;
+    lastPostTime = msSince;
+    if(msSince > sbetweenposts*1000) {
+      fFound = true;
+    }
+  }
+  return fFound;
+}
+
 var queue = new PictureQueue();
 
-var lastPostToSlackTime = new Date().getTime();
 var cPictures = 0;
 function doOnePicture() {
   cPictures++;
@@ -130,15 +175,13 @@ function doOnePicture() {
     console.log("adding ", fileToPost, "to the queue");
     queue.add(fileToPost);
 
-    const tmNow = new Date().getTime();
-    const msSince = tmNow - lastPostToSlackTime;
-    if(msSince > config.sbetweenposts*1000) {
+    const dtNow = new Date();
+    if(shouldPost(dtNow, config.sbetweenposts, config.scheduleminutes)) {
 
       // time to make a GIF!
       return createGifFromFiles(queue.getFilenames(), config).then((createdGif) => {
         console.log("we created a gif!", createdGif);
         return postToSlack(createdGif).then(() => {
-          lastPostToSlackTime = tmNow;
         })
       }, (failure) => {
         console.log("we failed ", failure);
