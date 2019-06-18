@@ -6,25 +6,7 @@
   "giffps": 8,
   "imagemagickpath": "\"c:\\Program Files\\ImageMagick-7.0.8-Q16\\convert.exe\"",
 
-  "scheduleminutes": [
-    7*60,
-    7.25*60,
-    7.5*60,
-    7.75*60,
-    8*60,
-    8.25*60,
-    8.5*60,
-    8.75*60,
-    9*60,
-    11.75*60,
-    12*60,
-    12.25*60,
-    16.25*60,
-    16.50*60,
-    16.75*60,
-    17*60,
-    17.25*60,
-    17.5*60,
-    17.75*60
-  ]
+  "openweathermapapikey": "GetOneAtOpenWeatherMap.org",
+  "openweathermaplat": -78,
+  "openweathermaplon": 44
   }

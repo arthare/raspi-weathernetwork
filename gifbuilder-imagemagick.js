@@ -9,13 +9,14 @@ try {
 } catch(e) {}
 
 function buildGifFromInputs(filenames, config) {
-  console.log("trying to build GIF.  Filenames: ", filenames, config);
   return new Promise((resolve, reject) => {
     // we want to haul "filenames" into a directory, then turn them into a gif.  We'll resolve with the file address of the GIF
     const filesMade = [];
 
     filenames.forEach((filename, index) => {
-      const dst = `gif-build-images/input${index}.jpg`;
+      const indexAsString = '' + index;
+      const indexZeroPadded = indexAsString.padStart(4, '0');
+      const dst = `gif-build-images/input${indexZeroPadded}.jpg`;
       filesMade.push(dst);
       fs.copyFileSync(filename, dst);
     });
@@ -24,7 +25,8 @@ function buildGifFromInputs(filenames, config) {
     }, (failure) => {
     }).then(() => {
       const gifPath = `gif-built-images/animated${new Date().getTime()}.gif`;
-      return promiseExec(`${config.imagemagickpath} -resize ${config.gifwidth}x -delay 33 -loop 0 gif-build-images/input*.jpg ${gifPath}`).then(() => {
+      const gifDelay = Math.ceil(100 / config.giffps);
+      return promiseExec(`${config.imagemagickpath} -resize ${config.gifwidth}x -delay ${gifDelay} -loop 0 gif-build-images/input*.jpg ${gifPath}`).then(() => {
         filesMade.forEach((filename) => {
           fs.unlinkSync(filename);
         })

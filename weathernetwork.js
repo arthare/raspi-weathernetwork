@@ -3,6 +3,7 @@ var fs = require('fs');
 var request = require('request');
 const createGifFromFiles = require('./gifbuilder-imagemagick');
 var promiseExec = require('./utils').promiseExec;
+var fetch = require('node-fetch');
 
 var config = fs.readFileSync("./your-weathernetwork-config.json", 'utf8');
 config = JSON.parse(config);
@@ -30,15 +31,19 @@ if(!config.imagemagickpath) {
 if(!config.gifwidth) {
   console.warn("You didn't include a gifwidth in your config.  Assuming 640");
 }
+if(!config.giffps) {
+  console.warn("You didn't include a giffps in your config to set the gif frames per second.  Assuming 6");
+}
 
 config.giflength = config.giflength || 10;
 config.sbetweengifframes = config.sbetweengifframes || 60;
 config.sbetweenposts = config.sbetweenposts || 1800;
 config.imagemagickpath = config.imagemagickpath || 'convert';
 config.gifwidth = config.gifwidth || 640;
+config.giffps = config.giffps || 6;
 
 
-function postToSlack(imagePath) {
+function postToSlack(imagePath, weatherString) {
   console.log("going to try to post to slack");
   return new Promise((resolve) => {
     console.log("about to do request.post");
@@ -53,7 +58,7 @@ function postToSlack(imagePath) {
       },
       formData : {
         //token: config.slacktoken,
-        title: "Image",
+        title: weatherString,
         filename: imagePath,
         filetype: "auto",
         channels: config.slackchannel,
@@ -63,7 +68,6 @@ function postToSlack(imagePath) {
   
     request(options, function (err, res, body) {
         if(err) console.log(err);
-        console.log(body);
 
         resolve();
     });
@@ -121,8 +125,7 @@ function PictureQueue() {
 var lastPostTime = new Date().getTime();
 var lastMinute = 1440;
 var schedulesHitToday = [];
-function shouldPost(date, sbetweenposts, schedule) {
-  console.log("checking if we should post ----------------");
+function shouldPost(date, sbetweenposts) {
   const currentMinute = date.getHours()*60 + date.getMinutes();
   if(currentMinute < lastMinute) {
     // it's a new day!
@@ -133,38 +136,39 @@ function shouldPost(date, sbetweenposts, schedule) {
   }
   lastMinute = currentMinute;
 
-  var fFound = false;
-  if(schedule) {
-    // we should loop through the schedule, and post everything that is in the past
-    schedule.forEach((scheduledMinute) => {
-      if(scheduledMinute < currentMinute) {
-        // this scheduled minute is in the past, so we should post it, if we haven't already posted this minute
-        const found = schedulesHitToday.find(postedMinute => postedMinute === scheduledMinute);
-        console.log("we found ", found, " when searching for ", scheduledMinute);
-        if(found) {
-          // we already posted this one
-          console.log("skipping posting because we have posted for scheduled minute ", scheduledMinute);
-        } else {
-          // we haven't posted this one
-          schedulesHitToday.push(scheduledMinute);
-          console.log("posting because we haven't posted for scheduled minute ", scheduledMinute, "yet");
-          fFound = true;
-        }
-      }
-    })
-  } else {
-    // they didn't include a schedule, so we just need to see if it has been long enough since last post
-    const msNow = date.getTime();
-    const msSince = msNow - lastPostTime;
-    lastPostTime = msSince;
-    if(msSince > sbetweenposts*1000) {
-      fFound = true;
-    }
+  const msNow = date.getTime();
+  const msSince = msNow - lastPostTime;
+  lastPostTime = msSince;
+
+  let fShouldPost = false;
+  if(msSince > sbetweenposts*1000) {
+    fShouldPost = true;
   }
-  return fFound;
+  return fShouldPost;
 }
 
 var queue = new PictureQueue();
+
+const DEFAULT_FORECAST_STRING = "Weather!";
+
+function getAndParseOWMInfo() {
+  if(config.openweathermapapikey) {
+    return fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${config.openweathermaplat}&lon=${config.openweathermaplon}&appid=${config.openweathermapapikey}`).then((result) => {
+      return result.json();
+    }).then((resultJson) => {
+      if(resultJson && resultJson.main && resultJson.main.temp && resultJson.main.humidity) {
+        const tempC = resultJson.main.temp - 273;
+        const humidity = resultJson.main.humidity;
+  
+        return "Currently " + tempC.toFixed(0) + "C and " + humidity.toFixed(0) + "% humidity in " + resultJson.name;
+      } else {
+        return DEFAULT_FORECAST_STRING;
+      }
+    });
+  } else {
+    return DEFAULT_FORECAST_STRING;
+  }
+}
 
 var cPictures = 0;
 function doOnePicture() {
@@ -178,15 +182,20 @@ function doOnePicture() {
     var pic = (cPictures % 2) ? './sun_sad.png' : './sun_sad2.png';
     queue.add(pic, 'png');
     return pic;
-  }).then((fileToPost) => {
+  }).then(() => {
 
     const dtNow = new Date();
-    if(shouldPost(dtNow, config.sbetweenposts, config.scheduleminutes)) {
+    if(shouldPost(dtNow, config.sbetweenposts)) {
 
       // time to make a GIF!
       return createGifFromFiles(queue.getFilenames(), config).then((createdGif) => {
-        console.log("we created a gif!", createdGif);
-        return postToSlack(createdGif);
+
+        // build the string we're going to post alongside the image
+        const owmPromise = getAndParseOWMInfo();
+
+        return owmPromise.then((weatherString) => {
+          return postToSlack(createdGif, weatherString);
+        });
       }, (failure) => {
         console.log("we failed ", failure);
       });
@@ -207,6 +216,6 @@ function mainLogic() {
   });
 }
 
-promiseExec('./clean').then(() => {
+promiseExec('bash ./clean').then(() => {
   mainLogic();
 });
