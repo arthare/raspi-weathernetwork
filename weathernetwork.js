@@ -35,13 +35,18 @@ if(!config.giffps) {
   console.warn("You didn't include a giffps in your config to set the gif frames per second.  Assuming 6");
 }
 
-config.giflength = config.giflength || 10;
-config.sbetweengifframes = config.sbetweengifframes || 60;
-config.sbetweenposts = config.sbetweenposts || 1800;
-config.imagemagickpath = config.imagemagickpath || 'convert';
-config.gifwidth = config.gifwidth || 640;
-config.giffps = config.giffps || 6;
 
+function reparseConfig() {
+  config = fs.readFileSync('./your-weathernetwork-config.json', 'utf8');
+  config = JSON.parse(config);
+  config.giflength = config.giflength || 10;
+  config.sbetweengifframes = config.sbetweengifframes || 60;
+  config.sbetweenposts = config.sbetweenposts || 1800;
+  config.imagemagickpath = config.imagemagickpath || 'convert';
+  config.gifwidth = config.gifwidth || 640;
+  config.giffps = config.giffps || 6;
+}
+reparseConfig();
 
 function postToSlack(imagePath, weatherString) {
   console.log("going to try to post to slack");
@@ -111,8 +116,12 @@ function PictureQueue() {
     ix++;
 
     const dstFile = `picture-queue/pic${ix}.${picExtension}`;
-    fs.copyFileSync(picFilename, dstFile);
-    pictures.push(dstFile);
+    try {
+      fs.copyFileSync(picFilename, dstFile);
+      pictures.push(dstFile);
+    } catch(e) {
+      console.log("While trying to copy recent pic into picture-queue, ", e);
+    }
 
     cleanPictures();
   }
@@ -123,7 +132,7 @@ function PictureQueue() {
 }
 
 var lastPostTime = new Date().getTime();
-var lastMinute = 1440;
+var lastMinute = 0;
 var schedulesHitToday = [];
 function shouldPost(date, sbetweenposts) {
   const currentMinute = date.getHours()*60 + date.getMinutes();
@@ -131,18 +140,27 @@ function shouldPost(date, sbetweenposts) {
     // it's a new day!
     console.log("resetting the day");
     schedulesHitToday = [];
+    return promiseExec('reboot');
   } else {
     console.log("day ongoing, we've posted ", schedulesHitToday);
   }
   lastMinute = currentMinute;
 
+  const currentHour = date.getHours();
+  if(currentHour < 5 || currentHour > 19) {
+    console.log("We shouldn't post because our currentHour is ", currentHour, ", which is outside work hours");
+    return false;
+  }
+
   const msNow = date.getTime();
   const msSince = msNow - lastPostTime;
-  lastPostTime = msSince;
 
   let fShouldPost = false;
   if(msSince > sbetweenposts*1000) {
     fShouldPost = true;
+    lastPostTime = date.getTime();
+  } else {
+    console.log("Won't post yet, still ", msSince, " since our last slack.  We need ", sbetweenposts*1000, " ms to have passed");
   }
   return fShouldPost;
 }
@@ -164,6 +182,9 @@ function getAndParseOWMInfo() {
       } else {
         return DEFAULT_FORECAST_STRING;
       }
+    }).catch((failure) => {
+     console.log("Failed to retrieve OWM data: ", failure);
+     return DEFAULT_FORECAST_STRING;
     });
   } else {
     return DEFAULT_FORECAST_STRING;
@@ -173,6 +194,8 @@ function getAndParseOWMInfo() {
 var cPictures = 0;
 function doOnePicture() {
   cPictures++;
+
+  reparseConfig();
 
   return promiseExec(`fswebcam -r 1280x720 -F 100 ${args} ./temp/output.jpg`).then(() => {
     console.log("took picture, added it to the queue");
@@ -196,7 +219,7 @@ function doOnePicture() {
         return owmPromise.then((weatherString) => {
           return postToSlack(createdGif, weatherString);
         });
-      }, (failure) => {
+      }).catch((failure) => {
         console.log("we failed ", failure);
       });
     } else {
