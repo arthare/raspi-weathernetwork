@@ -1,5 +1,7 @@
 {
   "slackchannel": "#yourchannel",
+  "slackchannelid": "C123456789",
+  "slackusertoken": "your user token, not your bot token.  This is used for the image-cleanup script at cleanup-old-images.js",
   "slacktoken": "your bot's oauth token from https://api.slack.com/apps/yourappjibberish/oauth?success=1",
   "sbetweenposts": 120,
   "sbetweengifframes": 30,

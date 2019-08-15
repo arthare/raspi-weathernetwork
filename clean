@@ -7,3 +7,5 @@ mkdir gif-build-images
 mkdir gif-built-images
 mkdir temp
 mkdir picture-queue
+
+node cleanup-old-images
