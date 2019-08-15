@@ -61,6 +61,8 @@ function accumulateFiles(page) {
   console.log("deleting files on page ", page);
   return listFiles(page).then((result) => {
 
+    console.log("there are ", result.paging.total, " files left to delete");
+
     result.files = result.files.filter((file) => {
       return file.mimetype === "image/gif" && file.channels.length === 1 && file.channels[0] === config.slackchannelid;
     });
